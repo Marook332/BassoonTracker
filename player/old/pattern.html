@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html>
 <head>
     <title>BassoonTracker - Standalone Player</title>
@@ -206,7 +207,7 @@
 </div>
 
 
-<script src="./script/bassoonplayer-min.js" type="module"></script>
+<script src="bassoonplayer-min.js?v20210322"></script>
 <script src="enum.js"></script>
 <script>
     var playItem;
@@ -278,10 +279,10 @@
 		var analyser = BassoonTracker.audio.context.createAnalyser();
 		analyser.smoothingTimeConstant = 0.85;
 
-		//BassoonTracker.init(true);
-		//if (!BassoonTracker.audio.context){
-		//	songName.innerHTML = "Sorry<br>Your browser does not support WebAudio.<br>Supported browsers are Chrome, Firefox, Safari, and Edge";
-		//}else{
+		BassoonTracker.init(true);
+		if (!BassoonTracker.audio.context){
+			songName.innerHTML = "Sorry<br>Your browser does not support WebAudio.<br>Supported browsers are Chrome, Firefox, Safari, and Edge";
+		}else{
 
 			var demoMod = "../demomods/StardustMemories.mod";
 
@@ -294,7 +295,7 @@
 			playItem = function(url){
 				stopPlay();
 				songName.innerHTML = "Loading ...";
-				BassoonTracker.load(url).then(function(){
+				BassoonTracker.load(url,false,function(){
                     currentSong = BassoonTracker.getSong();
 					songName.innerHTML = currentSong.title;
 
@@ -337,7 +338,7 @@
 				BassoonTracker.audio.masterVolume.gain.setValueAtTime(volumeBar.value/100,0);
 			};
 
-
+			BassoonTracker.audio.cutOffVolume.connect(analyser);
 
 
 			// setup simple timer
@@ -363,14 +364,13 @@
 
             // load first song
 			playItem(demoMod);
-		//}
+		}
 
 
 
 		function togglePlay(){
 			BassoonTracker.togglePlay();
 			if (BassoonTracker.isPlaying()){
-                BassoonTracker.audio.cutOffVolume.connect(analyser);
 				startTime = new Date().getTime();
 				playButton.innerHTML = "Pause";
 			}else{
@@ -379,8 +379,7 @@
 		}
 
 		function stopPlay(){
-			if (!BassoonTracker.isPlaying()) return;
-            BassoonTracker.stop();
+			BassoonTracker.stop();
 			playButton.innerHTML = "Play";
 		}
 

@@ -806,7 +806,9 @@ var Editor = (function(){
 		console.log(song);
 
 		let output = [];
+		let beats = [];
 		output.push("const toneOC = [");
+		beats.push("const beats = [");
 
 		for (let i = 0; i<song.length; i++){
 			let pattern = song.patterns[song.patternTable[i]];
@@ -853,12 +855,42 @@ var Editor = (function(){
 						console.error("no note found for period " + note.period);
 					}
 				}
+
+				let beat = step[1];
+				if (beat && beat.period){
+					let duration = 1;
+					let pause = 0;
+					let isPaused = false;
+					for (let j = stepIndex+1; j<pattern.length; j++){
+						let nextBeat = pattern[j][1];
+						if (nextBeat && nextBeat.period){
+							break;
+						}
+						if (nextBeat.effect === 12 && !nextBeat.param){
+							isPaused = true;
+						}
+
+						if (isPaused){
+							pause++;
+						}else{
+							duration++;
+							if (duration>1){
+								isPaused = true;
+							}
+						}
+					}
+					beats.push("	new Vibrate(t*" + duration + "),");
+					if (isPaused && pause<30){
+						beats.push("	new Pause(t*" + pause + "),");
+					}
+				}
 			})
 		}
 
 		output.push("];");
+		beats.push("];");
 
-		textarea.value = output.join("\n");
+		textarea.value = output.join("\n") + "\n\n" + beats.join("\n");
 
 
 

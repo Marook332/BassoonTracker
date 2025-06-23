@@ -1,0 +1,49 @@
+<html>
+<head>
+    <title>BassoonTracker - Import example</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width user-scalable=yes">
+    <style>
+        body{
+            font-family: sans-serif;
+        }
+
+        pre{
+            border: 1px solid black;
+            background-color: #c3c3c3;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+BassoonPlayer Import Module Example<br><br>
+<script>
+    import("./script/bassoonplayer-min.js").then(module=>{
+        let BassoonPlayer = module.default;
+        BassoonPlayer.load("../demomods/tokyo.mod").then(result=>{
+            let button = document.createElement("button");
+            button.innerText = "Play Tokyo.mod";
+            button.onclick = function () {
+                BassoonPlayer.play();
+            };
+            document.body.appendChild(button);
+        })
+    })
+</script>
+
+<pre>
+    import("./script/bassoonplayer-min.js").then(module=>{
+        let BassoonPlayer = module.default;
+        BassoonPlayer.load("../demomods/tokyo.mod").then(result=>{
+            let button = document.createElement("button");
+            button.innerText = "Play Tokyo.mod";
+            button.onclick = function () {
+                BassoonPlayer.play();
+            };
+            document.body.appendChild(button);
+        })
+    })
+</pre>
+</body>
+
+</html>

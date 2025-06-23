@@ -144,17 +144,17 @@
 <div id="playlist">
     <h2>Playlist</h2>
    <ul>
-       <li onclick="play('../demomods/StardustMemories.mod')">Stardust Memories</li>
-       <li onclick="play('../demomods/GSLINGER.MOD')">Guitar Slinger</li>
-       <li onclick="play('../demomods/Ambrozia.xm')">Ambrozia</li>
-       <li onclick="play('../demomods/Deadlock.xm')">Deadlock</li>
-       <li onclick="play('../demomods/Tinytune.mod')">TinyTune</li>
-       <li onclick="play('../demomods/external.xm')">External</li>
+       <li onclick="play('../../demomods/StardustMemories.mod')">Stardust Memories</li>
+       <li onclick="play('../../demomods/GSLINGER.MOD')">Guitar Slinger</li>
+       <li onclick="play('../../demomods/Ambrozia.xm')">Ambrozia</li>
+       <li onclick="play('../../demomods/Deadlock.xm')">Deadlock</li>
+       <li onclick="play('../../demomods/Tinytune.mod')">TinyTune</li>
+       <li onclick="play('../../demomods/external.xm')">External</li>
    </ul>
 </div>
 
 
-<script src="./script/bassoonplayer-min.js" type="module"></script>
+<script src="b-min.js"></script>
 <script>
     var playItem;
 	var autoPlay = false;
@@ -177,17 +177,15 @@
         };
 		document.getElementById("scope").appendChild(scopeCanvas);
 
-        BassoonTracker.init(true);
-
 		var analyser = BassoonTracker.audio.context.createAnalyser();
 		analyser.smoothingTimeConstant = 0.85;
 
-
+		BassoonTracker.init(true);
 		if (!BassoonTracker.audio.context){
 			songName.innerHTML = "Sorry<br>Your browser does not support WebAudio.<br>Supported browsers are Chrome, Firefox, Safari, and Edge";
 		}else{
 
-			var demoMod = "../demomods/StardustMemories.mod";
+			var demoMod = "../../demomods/StardustMemories.mod";
 
 			var startTime;
 			var wasPlaying;
@@ -197,17 +195,17 @@
 			playItem = function(url){
 				stopPlay();
 				songName.innerHTML = "Loading ...";
-				BassoonTracker.load(url).then(function(){
-                    var song = BassoonTracker.getSong();
-                    songName.innerHTML = song.title;
+				BassoonTracker.load(url,false,function(){
+					var song = BassoonTracker.getSong();
+					songName.innerHTML = song.title;
 
-                    // We could loop over all the patterns to get the real length, but a rough estimate is good enough.
-                    patternLength = song.patterns[song.patternTable[0]].length;
-                    songLength = song.length*patternLength;
+					// We could loop over all the patterns to get the real length, but a rough estimate is good enough.
+					patternLength = song.patterns[song.patternTable[0]].length;
+					songLength = song.length*patternLength;
 
-                    // only autostart
-                    if (autoPlay) togglePlay();
-                });
+					// only autostart
+					if (autoPlay) togglePlay();
+				});
 			};
 
 			// setup UI
@@ -236,7 +234,7 @@
 				BassoonTracker.audio.masterVolume.gain.setValueAtTime(volumeBar.value/100,0);
 			};
 
-
+			BassoonTracker.audio.cutOffVolume.connect(analyser);
 
 
 			// setup simple timer
@@ -267,7 +265,6 @@
 		function togglePlay(){
 			BassoonTracker.togglePlay();
 			if (BassoonTracker.isPlaying()){
-                BassoonTracker.audio.cutOffVolume.connect(analyser);
 				startTime = new Date().getTime();
 				playButton.innerHTML = "Pause";
 			}else{
@@ -282,7 +279,7 @@
 
 		// render a frequency scope
 		function renderScope(){
-            scope.clearRect(0,0,scopeWidth,scopeHeight);
+			scope.clearRect(0,0,scopeWidth,scopeHeight);
 			scope.fillStyle = '#000000';
 
 			analyser.fftSize = 128;

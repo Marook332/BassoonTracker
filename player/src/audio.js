@@ -10,15 +10,12 @@ import {
 import Tracker, {FTNotes, nameNoteTable, noteNames, periodFinetuneTable, periodNoteTable} from "./tracker.js";
 import FilterChain from "./audio/filterChain.js";
 import EventBus from "./eventBus.js";
-import Editor from "./editor.js";
-import {saveFile} from "./filesystem.js";
 
 
 var Audio = (function(){
     var me = {};
 
     window.AudioContext = window.AudioContext||window.webkitAudioContext;
-    window.OfflineAudioContext = window.OfflineAudioContext||window.webkitOfflineAudioContext;
 
     var context;
     var masterVolume;
@@ -27,12 +24,7 @@ var Audio = (function(){
     var highShelfFilter;
     var i;
     var filterChains = [];
-    var isRecording;
-    var recordingAvailable;
-    var mediaRecorder;
-    var recordingChunks = [];
     var offlineContext;
-    var onlineContext;
     var currentStereoSeparation = STEREOSEPARATION.BALANCED;
     var lastMasterVolume = 0;
     var usePanning;
@@ -43,44 +35,16 @@ var Audio = (function(){
 
     var filters = {
         volume: true,
-        panning: true,
-        high: true,
-        mid: true,
-        low: true,
-        lowPass : true,
-        reverb: true,
-        distortion: false,
-        delay: false,
+        panning: true
     };
 
-    var isRendering = false;
 
     function createAudioConnections(audioContext,destination){
 
         cutOffVolume = audioContext.createGain();
         cutOffVolume.gain.setValueAtTime(1,0);
 
-        // Haas effect stereo expander
-        var useStereoExpander = false;
-        if (useStereoExpander){
-            var splitter = audioContext.createChannelSplitter(2);
-            var merger = audioContext.createChannelMerger(2);
-            var haasDelay = audioContext.createDelay(1);
-            cutOffVolume.connect(splitter);
-            splitter.connect(haasDelay, 0);
-            haasDelay.connect(merger, 0, 0);
-            splitter.connect(merger, 1, 1);
-            merger.connect(destination || audioContext.destination);
-            window.haasDelay = haasDelay;
-        }else{
-            cutOffVolume.connect(destination || audioContext.destination);
-        }
-
-
-
-
-
-
+        cutOffVolume.connect(destination || audioContext.destination);
 
         masterVolume = audioContext.createGain();
         masterVolume.connect(cutOffVolume);
@@ -119,7 +83,7 @@ var Audio = (function(){
         if (!usePanning){
             console.warn("Warning: Your browser does not support StereoPanners ... all mods will be played in mono!")
         }
-        hasUI = typeof Editor !== "undefined";
+        hasUI = false;
 
         createAudioConnections(audioContext,destination);
 
@@ -135,26 +99,17 @@ var Audio = (function(){
         for (i = 0; i<numberOfTracks;i++)addFilterChain();
 
         me.filterChains = filterChains;
-		me.usePanning = usePanning;
+        me.usePanning = usePanning;
 
-        if (!isRendering){
-            EventBus.on(EVENT.trackStateChange,function(state){
-                if (typeof state.track != "undefined" && filterChains[state.track]){
-                    filterChains[state.track].volumeValue(state.mute?0:70);
-                }
-            });
+        EventBus.on(EVENT.trackCountChange,function(trackCount){
+            for (i = filterChains.length; i<trackCount;i++)addFilterChain();
+            EventBus.trigger(EVENT.filterChainCountChange,trackCount);
+            me.setStereoSeparation(currentStereoSeparation);
+        });
 
-
-			EventBus.on(EVENT.trackCountChange,function(trackCount){
-				for (i = filterChains.length; i<trackCount;i++)addFilterChain();
-				EventBus.trigger(EVENT.filterChainCountChange,trackCount);
-				me.setStereoSeparation(currentStereoSeparation);
-			});
-
-			EventBus.on(EVENT.trackerModeChanged,function(mode){
-				me.setStereoSeparation();
-			});
-        }
+        EventBus.on(EVENT.trackerModeChanged,function(mode){
+            me.setStereoSeparation();
+        });
     };
 
 
@@ -168,13 +123,13 @@ var Audio = (function(){
         me.cutOff = true;
 
         var totalNotes = 0;
-		scheduledNotes.forEach(function(bucket,index){
-			totalNotes += bucket.length;
-		    bucket.forEach(function(volume){
-		        volume.gain.cancelScheduledValues(0);
-		        volume.gain.setValueAtTime(0,0);
-			});
-			scheduledNotes[index] = [];
+        scheduledNotes.forEach(function(bucket,index){
+            totalNotes += bucket.length;
+            bucket.forEach(function(volume){
+                volume.gain.cancelScheduledValues(0);
+                volume.gain.setValueAtTime(0,0);
+            });
+            scheduledNotes[index] = [];
         });
 
         if (totalNotes) console.log(totalNotes + " cleared");
@@ -193,16 +148,12 @@ var Audio = (function(){
     me.playSample = function(index,period,volume,track,effects,time,noteIndex){
 
         var audioContext;
-        if (isRendering){
-            audioContext = offlineContext;
-        }else{
-            audioContext = context;
-            me.enable();
-        }
+        audioContext = context;
+        me.enable();
 
-		period = period || 428; // C-3
+        period = period || 428; // C-3
         if (typeof track === "undefined") track = (hasUI ? Editor.getCurrentTrack() : 0);
-		time = time || context.currentTime;
+        time = time || context.currentTime;
 
         if (noteIndex === NOTEOFF){
             volume = 0; // note off
@@ -210,12 +161,12 @@ var Audio = (function(){
 
         var instrument = Tracker.getInstrument(index);
         var basePeriod = period;
-		var volumeEnvelope;
-		var panningEnvelope;
-		var scheduled;
-		var pan = 0;
+        var volumeEnvelope;
+        var panningEnvelope;
+        var scheduled;
+        var pan = 0;
 
-		if (instrument){
+        if (instrument){
             var sampleBuffer;
             var offset = 0;
             var sampleLength = 0;
@@ -224,22 +175,22 @@ var Audio = (function(){
 
             pan = (instrument.sample.panning || 0) / 128;
 
-			var sampleRate;
+            var sampleRate;
 
-			// apply finetune
-			if (Tracker.inFTMode()){
+            // apply finetune
+            if (Tracker.inFTMode()){
                 if (Tracker.useLinearFrequency){
-					period -= instrument.getFineTune()/2;
-				}else{
-					if (instrument.getFineTune()){
-						period = me.getFineTuneForNote(noteIndex,instrument.getFineTune());
-					}
+                    period -= instrument.getFineTune()/2;
+                }else{
+                    if (instrument.getFineTune()){
+                        period = me.getFineTuneForNote(noteIndex,instrument.getFineTune());
+                    }
                 }
             }else{
                 // protracker frequency
-				if (instrument.getFineTune()){
-					period = me.getFineTuneForPeriod(period,instrument.getFineTune());
-				}
+                if (instrument.getFineTune()){
+                    period = me.getFineTuneForPeriod(period,instrument.getFineTune());
+                }
             }
 
             sampleRate = me.getSampleRateForPeriod(period);
@@ -264,13 +215,13 @@ var Audio = (function(){
                 buffering[i] = instrument.sample.data[i];
             }
 
-			prevSampleRate = sampleRate;
+            prevSampleRate = sampleRate;
             var source = audioContext.createBufferSource();
             source.buffer = sampleBuffer;
 
             var volumeGain = audioContext.createGain();
             volumeGain.gain.value = volume/100;
-			volumeGain.gain.setValueAtTime(volume/100,time);
+            volumeGain.gain.setValueAtTime(volume/100,time);
 
             if (instrument.sample.loop.enabled && instrument.sample.loop.length>2){
 
@@ -286,32 +237,32 @@ var Audio = (function(){
 
             if (instrument.volumeEnvelope.enabled || instrument.panningEnvelope.enabled || instrument.hasVibrato()){
 
-            	var envelopes = instrument.noteOn(time);
-            	var target = source;
+                var envelopes = instrument.noteOn(time);
+                var target = source;
 
-            	if (envelopes.volume){
-					volumeEnvelope = envelopes.volume;
-					source.connect(volumeEnvelope);
-					target = volumeEnvelope;
-				}
+                if (envelopes.volume){
+                    volumeEnvelope = envelopes.volume;
+                    source.connect(volumeEnvelope);
+                    target = volumeEnvelope;
+                }
 
-				if (envelopes.panning){
-					panningEnvelope = envelopes.panning;
-					target.connect(panningEnvelope);
-					target = panningEnvelope;
-				}
+                if (envelopes.panning){
+                    panningEnvelope = envelopes.panning;
+                    target.connect(panningEnvelope);
+                    target = panningEnvelope;
+                }
 
 
 
-				scheduled = envelopes.scheduled;
+                scheduled = envelopes.scheduled;
 
-				target.connect(volumeGain);
+                target.connect(volumeGain);
 
             }else{
                 source.connect(volumeGain);
             }
 
-			var volumeFadeOut = Audio.context.createGain();
+            var volumeFadeOut = Audio.context.createGain();
             if (Tracker.inFTMode()){
                 volumeFadeOut.gain.setValueAtTime(0,time);
                 volumeFadeOut.gain.linearRampToValueAtTime(1,time + 0.01);
@@ -320,24 +271,24 @@ var Audio = (function(){
                 volumeFadeOut.gain.setValueAtTime(1,time);
             }
 
-			volumeGain.connect(volumeFadeOut);
+            volumeGain.connect(volumeFadeOut);
 
-			if (usePanning){
-				var panning = Audio.context.createStereoPanner();
-				panning.pan.setValueAtTime(pan,time);
-				volumeFadeOut.connect(panning);
-				panning.connect(filterChains[track].input());
+            if (usePanning){
+                var panning = Audio.context.createStereoPanner();
+                panning.pan.setValueAtTime(pan,time);
+                volumeFadeOut.connect(panning);
+                panning.connect(filterChains[track].input());
             }else{
 
-				/* 
-				Note: a pannernode would work too but this doesn't have a "setPositionInTime" method
-				Making it a bit useless
-				panning = Audio.context.createPanner();
-				panning.panningModel = 'equalpower';
-				panning.setPosition(pan, 0, 1 - Math.abs(pan));
-				*/
-				
-				volumeFadeOut.connect(filterChains[track].input());
+                /*
+                Note: a pannernode would work too but this doesn't have a "setPositionInTime" method
+                Making it a bit useless
+                panning = Audio.context.createPanner();
+                panning.panningModel = 'equalpower';
+                panning.setPosition(pan, 0, 1 - Math.abs(pan));
+                */
+
+                volumeFadeOut.connect(filterChains[track].input());
             }
 
 
@@ -350,9 +301,9 @@ var Audio = (function(){
                 source: source,
                 volume: volumeGain,
                 panning: panning,
-				volumeEnvelope: volumeEnvelope,
-				panningEnvelope: panningEnvelope,
-				volumeFadeOut: volumeFadeOut,
+                volumeEnvelope: volumeEnvelope,
+                panningEnvelope: panningEnvelope,
+                volumeFadeOut: volumeFadeOut,
                 startVolume: volume,
                 currentVolume: volume,
                 startPeriod: period,
@@ -364,12 +315,12 @@ var Audio = (function(){
                 effects: effects,
                 track: track,
                 time: time,
-				scheduled: scheduled
+                scheduled: scheduled
             };
 
-			scheduledNotes[scheduledNotesBucket].push(volumeGain);
+            scheduledNotes[scheduledNotesBucket].push(volumeGain);
 
-            if (!isRendering) EventBus.trigger(EVENT.samplePlay,result);
+            EventBus.trigger(EVENT.samplePlay,result);
 
             return result;
         }
@@ -377,134 +328,36 @@ var Audio = (function(){
         return {};
     };
 
-    me.playSilence = function(){
-        // used to activate Audio engine on first touch in IOS and Android devices
-        if (context){
-            var source = context.createBufferSource();
-            source.connect(masterVolume);
-            try{
-            	source.start();
-			}catch (e){
-            	console.error(e);
-			}
-        }
-    };
-
-	me.playRaw = function(data,sampleRate){
-		// used to loose snippets of samples (ranges etc)
-		if (context && data && data.length){
-			var sampleBuffer;
-			sampleBuffer = context.createBuffer(1,data.length,context.sampleRate);
-			var initialPlaybackRate = sampleRate / audioContext.sampleRate;
-			var source = context.createBufferSource();
-			source.buffer = sampleBuffer;
-			source.loop = true;
-			source.playbackRate.value = initialPlaybackRate;
-			source.connect(masterVolume);
-			source.start();
-		}
-	};
-
-    //<!--
-    me.isRecording = function(){
-        return isRecording;
-    };
-
-    me.startRecording = function(){
-        if (!isRecording){
-
-            if (context && context.createMediaStreamDestination){
-                var dest = context.createMediaStreamDestination();
-                mediaRecorder = new MediaRecorder(dest.stream);
-
-                mediaRecorder.ondataavailable = function(evt) {
-                    // push each chunk (blobs) in an array
-                    recordingChunks.push(evt.data);
-                };
-
-                mediaRecorder.onstop = function(evt) {
-                    var blob = new Blob(recordingChunks, { 'type' : 'audio/ogg; codecs=opus' });
-                    saveFile(blob,"recording.opus");
-                    //document.querySelector("audio").src = URL.createObjectURL(blob);
-                };
-
-
-                masterVolume.connect(dest);
-                mediaRecorder.start();
-                isRecording = true;
-
-            }else{
-                console.error("recording is not supported on this browser");
-            }
-
-        }
-    };
-
-    me.stopRecording = function(){
-        if (isRecording){
-            isRecording = false;
-            mediaRecorder.stop();
-        }
-    };
-
-    me.startRendering = function(length){
-        isRendering = true;
-
-        console.log("startRendering " + length);
-        offlineContext = new OfflineAudioContext(2,44100*length,44100);
-        onlineContext = context;
-        me.context = offlineContext;
-        me.init(offlineContext);
-    };
-
-    me.stopRendering = function(next){
-        isRendering = false;
-
-        offlineContext.startRendering().then(function(renderedBuffer) {
-            console.log('Rendering completed successfully');
-            if (next) next(renderedBuffer);
-        }).catch(function(err) {
-            console.log('Rendering failed: ' + err);
-            // Note: The promise should reject when startRendering is called a second time on an OfflineAudioContext
-        });
-
-
-        // switch back to online Audio context;
-        me.context = onlineContext;
-        createAudioConnections(onlineContext);
-        me.init(onlineContext);
-    };
-    //-->
 
     me.setStereoSeparation = function(value){
 
-		var panAmount;
-		var numberOfTracks = Tracker.getTrackCount();
+        var panAmount;
+        var numberOfTracks = Tracker.getTrackCount();
 
-    	if (Tracker.inFTMode()){
-    		panAmount = 0;
-		}else{
-			value = value || currentStereoSeparation;
-			currentStereoSeparation = value;
+        if (Tracker.inFTMode()){
+            panAmount = 0;
+        }else{
+            value = value || currentStereoSeparation;
+            currentStereoSeparation = value;
 
-			switch(value){
-				case STEREOSEPARATION.NONE:
-					// mono, no panning
-					panAmount = 0;
-					SETTINGS.stereoSeparation = STEREOSEPARATION.NONE;
-					break;
-				case STEREOSEPARATION.FULL:
-					// Amiga style: pan even channels hard to the left, uneven to the right;
-					panAmount = 1;
-					SETTINGS.stereoSeparation = STEREOSEPARATION.FULL;
-					break;
-				default:
-					// balanced: pan even channels somewhat to the left, uneven to the right;
-					panAmount = 0.3;
-					SETTINGS.stereoSeparation = STEREOSEPARATION.BALANCED;
-					break;
-			}
-		}
+            switch(value){
+                case STEREOSEPARATION.NONE:
+                    // mono, no panning
+                    panAmount = 0;
+                    SETTINGS.stereoSeparation = STEREOSEPARATION.NONE;
+                    break;
+                case STEREOSEPARATION.FULL:
+                    // Amiga style: pan even channels hard to the left, uneven to the right;
+                    panAmount = 1;
+                    SETTINGS.stereoSeparation = STEREOSEPARATION.FULL;
+                    break;
+                default:
+                    // balanced: pan even channels somewhat to the left, uneven to the right;
+                    panAmount = 0.3;
+                    SETTINGS.stereoSeparation = STEREOSEPARATION.BALANCED;
+                    break;
+            }
+        }
 
         for (i = 0; i<numberOfTracks;i++){
             var filter = filterChains[i];
@@ -513,8 +366,8 @@ var Audio = (function(){
     };
 
     me.getPrevSampleRate = function(){
-    	return prevSampleRate;
-	};
+        return prevSampleRate;
+    };
 
     me.context = context;
 
@@ -586,12 +439,12 @@ var Audio = (function(){
     };
 
     me.getNearestSemiTone = function(period,instrumentIndex){
-		var result = period;
-		var minDelta = 100000;
-		var instrument = Tracker.getInstrument(instrumentIndex);
-		
-		var note,p,delta;
-		
+        var result = period;
+        var minDelta = 100000;
+        var instrument = Tracker.getInstrument(instrumentIndex);
+
+        var note,p,delta;
+
         if (Tracker.inFTMode()){
             var targetIndex = 0;
             FTNotes.forEach(function(note,index){
@@ -613,23 +466,23 @@ var Audio = (function(){
                 }
             }
 
-		}else{
-			var tuning = 8;
-			if (instrumentIndex){
-				if (instrument && instrument.sample.finetune) tuning = tuning + instrument.sample.finetune;
-			}
-			
-			for (note in NOTEPERIOD){
-				if (NOTEPERIOD.hasOwnProperty(note)){
-					p = NOTEPERIOD[note].tune[tuning];
-					delta = Math.abs(p - period);
-					if (delta<minDelta) {
-						minDelta = delta;
-						result = p;
-					}
-				}
-			}
-		}
+        }else{
+            var tuning = 8;
+            if (instrumentIndex){
+                if (instrument && instrument.sample.finetune) tuning = tuning + instrument.sample.finetune;
+            }
+
+            for (note in NOTEPERIOD){
+                if (NOTEPERIOD.hasOwnProperty(note)){
+                    p = NOTEPERIOD[note].tune[tuning];
+                    delta = Math.abs(p - period);
+                    if (delta<minDelta) {
+                        minDelta = delta;
+                        result = p;
+                    }
+                }
+            }
+        }
         return result;
     };
 
@@ -659,7 +512,7 @@ var Audio = (function(){
         }
 
         console.warn("unable to find finetune for note " + note,ftNote1);
-		return ftNote1 ? ftNote1.period : 100000;
+        return ftNote1 ? ftNote1.period : 100000;
 
     };
 
@@ -673,13 +526,13 @@ var Audio = (function(){
         return result;
     };
 
-	me.getSampleRateForPeriod = function(period){
-		if (Tracker.inFTMode()){
-			if (Tracker.useLinearFrequency) return (8363 * Math.pow(2,((4608 - period) / 768)));
-			return PC_FREQUENCY_HALF / period;
-		}
-		return AMIGA_PALFREQUENCY_HALF / period;
-	};
+    me.getSampleRateForPeriod = function(period){
+        if (Tracker.inFTMode()){
+            if (Tracker.useLinearFrequency) return (8363 * Math.pow(2,((4608 - period) / 768)));
+            return PC_FREQUENCY_HALF / period;
+        }
+        return AMIGA_PALFREQUENCY_HALF / period;
+    };
 
     me.limitAmigaPeriod = function(period){
         // limits the period to the allowed Amiga frequency range, between 113 (B3) and 856 (C1)
@@ -700,25 +553,25 @@ var Audio = (function(){
         time=time||context.currentTime;
         value = value*0.7;
         masterVolume.gain.setValueAtTime(lastMasterVolume,time);
-		masterVolume.gain.linearRampToValueAtTime(value,time+0.02);
-		lastMasterVolume = value;
-	};
+        masterVolume.gain.linearRampToValueAtTime(value,time+0.02);
+        lastMasterVolume = value;
+    };
 
-	me.slideMasterVolume = function (value,time) {
-		time=time||context.currentTime;
-		value = value*0.7;
-		masterVolume.gain.linearRampToValueAtTime(value,time);
-		lastMasterVolume = value;
-	};
+    me.slideMasterVolume = function (value,time) {
+        time=time||context.currentTime;
+        value = value*0.7;
+        masterVolume.gain.linearRampToValueAtTime(value,time);
+        lastMasterVolume = value;
+    };
 
-	me.getLastMasterVolume = function(){
-		return lastMasterVolume/0.7;
-	};
+    me.getLastMasterVolume = function(){
+        return lastMasterVolume/0.7;
+    };
 
     me.clearScheduledNotesCache = function(){
         // 3 rotating caches
-		scheduledNotesBucket++;
-		if (scheduledNotesBucket>2) scheduledNotesBucket=0;
+        scheduledNotesBucket++;
+        if (scheduledNotesBucket>2) scheduledNotesBucket=0;
         scheduledNotes[scheduledNotesBucket] = [];
     };
 
@@ -728,23 +581,23 @@ var Audio = (function(){
             // I got the impression that this formaula is more like  amp * 2 in FT2
             // in Protracker a lookuptable is used - maybe we should adopt that
         },
-		saw : function(period,progress,freq,amp){
-			var value = 1 - Math.abs(((progress * freq/7) % 1)); // from 1 to 0
-			value = (value * 2) - 1; // from -1 to 1
-			value = value * amp * -2;
-			return period + value;
-		},
+        saw : function(period,progress,freq,amp){
+            var value = 1 - Math.abs(((progress * freq/7) % 1)); // from 1 to 0
+            value = (value * 2) - 1; // from -1 to 1
+            value = value * amp * -2;
+            return period + value;
+        },
         square : function(period,progress,freq,amp){
             var value = Math.sin(progress * freq) <= 0 ? -1 : 1;
             value = value * amp * 2;
             return period + value;
         },
-		sawInverse : function(period,progress,freq,amp){
-			var value = Math.abs((progress * freq/7) % 1); // from 0 to 1
-			value = (value * 2) - 1; // from -1 to 1
-			value = value * amp * -2;
-			return period + value;
-		}
+        sawInverse : function(period,progress,freq,amp){
+            var value = Math.abs((progress * freq/7) % 1); // from 0 to 1
+            value = (value * 2) - 1; // from -1 to 1
+            value = value * amp * -2;
+            return period + value;
+        }
     };
 
     return me;

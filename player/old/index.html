@@ -15,31 +15,12 @@
 
         #controls,
         #loading{
+
             border: 1px solid #94b6c5;
             background-color: #eaf6ff;
             padding: 10px;
-            font-size: 1.5em;
+            font-size: 2em;
             cursor: pointer;
-            width: 180px;
-            padding-left: 40px;
-            border-radius: 15px;
-            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-            position: relative;
-
-            &:before{
-                content: "▶";
-                position: absolute;
-                left: 16px;
-                top: 50%;
-                transform: translateY(-50%);
-                font-size: 0.8em;
-            }
-
-            &.playing{
-                &:before{
-                    content: "❚❚";
-                }
-            }
         }
 
         #controls{
@@ -83,22 +64,26 @@
         }
     </style>
 
-    <script src="./script/bassoonplayer-min.js" type="module"></script>
+    <!-- <script src="bassoonplayer-min.js"></script> -->
+    <!-- <script src="b-min.js"></script> -->
+    <!-- <script src="b-pack.js"></script> -->
+    <script src="b-zip.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             var loading = document.getElementById("loading");
             var controls = document.getElementById("controls");
-            if (!window.AudioContext && !window.webkitAudioContext) {
+			BassoonTracker.init(true);
+            if (!BassoonTracker.audio.context){
                 loading.innerHTML = "Sorry<br>Your browser does not support WebAudio.<br>Supported browsers are Chrome,Firefox,Safari and Edge";
             }else{
 
-            var demoMod = "StardustMemories.mod";
+            var demoMod = "StardustMemories.zip";
 
-				BassoonTracker.load("../demomods/" + demoMod).then(result=>{
+				BassoonTracker.load("../../demomods/" + demoMod,false,function(){
                     loading.style.display = "none";
                     controls.style.display = "block";
-                })
+                });
             }
         });
 
@@ -106,9 +91,6 @@
 			BassoonTracker.togglePlay();
             var button = document.getElementById("button");
             button.innerHTML = BassoonTracker.isPlaying() ? "Pause" : "Play";
-
-            var controls = document.getElementById("controls");
-            controls.classList.toggle("playing", BassoonTracker.isPlaying());
         }
 
     </script>
@@ -128,6 +110,8 @@
     <br><br>
 
     Just include a single JS file and you're good to go.<br>
+    
+    Size comparisons <small>(v0.4.0)</small> of provided libraries<br>
     <br>
     <table>
       <thead>
@@ -138,16 +122,34 @@
       </thead>
       <tbody>
         <tr>
-          <td><a href="script/bassoonplayer-min.js" target="_blank">bassoonplayer-min.js</a></td>
-          <td>16.6 kB</td>
-          <td>48.5 kB</td>
-          <td>Minified</td>
+          <td><a href="bassoonplayer.js" target="_blank">bassoonplayer.js</a></td>
+          <td>44.9 kB</td>
+          <td>187 kB</td>
+          <td>Untouched - useful for debugging</td>
         </tr>
         <tr>
-          <td><a href="bassoonplayer.js" target="_blank">bassoonplayer.js</a></td>
-          <td>24.4 kB</td>
-          <td>125.68 kB</td>
-          <td>Not minified - useful for debugging</td>
+          <td><a href="bassoonplayer-min.js" target="_blank">bassoonplayer-min.js</a></td>
+          <td>22.6 kB</td>
+          <td>68.6 kB</td>
+          <td>Untouched</td>
+        </tr>
+        <tr>
+          <td><a href="b-min.js" target="_blank">b-min.js</a></td>
+          <td>20.4 kB</td>
+          <td>55.5 kB</td>
+          <td>Squeezed</td>
+        </tr>
+        <tr>
+          <td><a href="b-pack.js" target="_blank">b-pack.js</a></td>
+          <td class="green">19.8 kB</td>
+          <td>41.5 kB</td>
+          <td><a href="https://github.com/Siorki/RegPack" target="_blank">RegPacked</a></td>
+        </tr>
+        <tr>
+          <td><a href="b-zip.js" target="_blank">b-zip.js</a></td>
+          <td>23.4 kB</td>
+          <td class="green">29.2 kB</td>
+          <td class="green"><a href="https://github.com/photopea/UZIP.js" target="_blank">zipped</a> - supports zipped mods</td>
         </tr>
       </tbody>
     </table>
@@ -155,34 +157,47 @@
 
     The most simple example would be:
     <xmp>
-        <script src="bassoonplayer-min.js" type="module"></script>
+        <script src="bassoonplayer-min.js"></script>
         <script>
-            BassoonTracker.load("url/to/file.mod").then(function(){;
-                BassoonTracker.play();
+			BassoonTracker.init(true);
+			BassoonTracker.load("url/to/file.mod",true);
+        </script>
+    </xmp>
+
+
+    The second parameter in BassoonTracker.load defines autoplay.<br>
+    Please note that most modern browser disable audio playback until a user action, so you may need a "play" button to initiate playback.<br>
+    You can use a third parameter as callback function when the loading of the file is done.<br>
+
+    <xmp>
+        <script>
+            BassoonTracker.load("url/to/file.mod",false,function(){
+                //... do something
             });
         </script>
     </xmp>
 
-    Please note that most modern browser disable audio playback until a user action, so you may need a "play" button to initiate playback.<br>
-
+    After BassoonTracker.init you might want to check "Audio.context" to see if the browser supports WebAudio.<br>
     <br>Some useful methods:
     <ul>
-        <li><code>BassoonTracker.play()</code></li>
-        <li><code>BassoonTracker.stop()</code></li>
         <li><code>BassoonTracker.togglePlay()</code></li>
         <li><code>BassoonTracker.isPlaying()</code></li>
+        <li><code>BassoonTracker.playSong()</code></li>
+        <li><code>BassoonTracker.stop()</code></li>
+        <li><code>BassoonTracker.getTrackCount()</code></li>
         <li><code>BassoonTracker.getSong()</code> <span>(gets the current song)</span>
             <ul>
                 <li><code>BassoonTracker.getSong().title</code></li>
                 <li><code>BassoonTracker.getSong().length</code> <span>(in patterns)</span></li>
                 <li><code>BassoonTracker.getSong().patterns</code> <span>(array of patterns)</span></li>
                 <li><code>BassoonTracker.getSong().patternTable</code> <span>(array of pattern positions in the song)</span></li>
-                <li><code>BassoonTracker.getSong().instruments</code> <span>(array instruments/samples in the song)</span></li>
             </ul>
         </li>
         <li><code>BassoonTracker.setCurrentSongPosition(songPos)</code></li>
+        <li><code>BassoonTracker.playSample(sampleIndex,sampleRate)</code></li>
+        <li><code>BassoonTracker.getBPM</code></li>
+        <li><code>BassoonTracker.getAmigaSpeed</code></li>
         <li><code>BassoonTracker.audio</code> (pointer to the main audio object)</li>
-        <li><code>BassoonTracker.audio.playSample(sampleIndex,sampleRate)</code></li>
     </ul>
 
         The playback itself is scheduled in WebAudio and completely detached from the main JS thread.<br>
@@ -190,20 +205,13 @@
         If you want to display some UI with a progress indicator you will have to keep track of the start time of the song (Audio.context.currentTime)
         and call
         <code>BassoonTracker.getStateAtTime(time)</code> periodically <br>(or <code>BassoonTracker.getTimeStates()</code> to get the complete list).<br>
-    <br><br>
-    Note that the Tracker schedules audio ahead, so the last item in the BassoonTracker.getTimeStates() list will be in the future.<br>
+        Note that the Tracker schedules audio ahead, so the last item in the BassoonTracker.getTimeStates() list will be in the future.<br>
     Refer <a href="progress.html">to this example with progress tracking</a> for a demo.
     <br><br>
 
 
-    If you want to adjust the volume, you can use <code>BassoonTracker.audio.masterVolume</code> which is a WebAudio GainNode.
+        If you want to adjust to volume, you can use <code>BassoonTracker.audio.masterVolume</code> which is a WebAudio GainNode.
 
-    <br><br>
-    Some more examples:
-    <ul>
-        <li><a href="pattern.html">Pattern Display</a> : Display a small Pattern View while playing</li>
-        <li><a href="import.html">Import Module</a> : Import the BassoonPlayer Library as a JavaScript module</li>
-    </ul>
 
 </div>
 

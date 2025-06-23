@@ -1,7 +1,7 @@
 import https from "https";
 import fs from "fs";
 
-let url = "https://demozoo.org/parties/4622/";
+let url = "https://demozoo.org/parties/5033/";
 let file = "demozoo.json";
 let partyName;
 let scanUrl = true;
@@ -79,6 +79,8 @@ function savePlaylist(struct){
             if (item.format) module.format = item.format;
             if (item.channels) module.channels = item.channels;
             modules.push(module);
+        }else{
+            console.log("Dropping entry: " + item.title + " - " + item.format);
         }
     })
     let playlist = {
@@ -183,6 +185,7 @@ function getDetails(url){
         if (tags.indexOf('"/productions/tagged/32ch/"')>=0) result.channels=32;
         if (tags.indexOf('"/productions/tagged/openmpt/"')>=0) result.format="OPENMPT";
         if (tags.indexOf('"/productions/tagged/renoise/"')>=0) result.format="RENOISE";
+        if (tags.indexOf('"/productions/tagged/pretracker/"')>=0) result.format="PRETRACKER";
 
         next(result);
     });
@@ -199,7 +202,9 @@ function extractTrackedMusic(html){
         "Amiga Tracked MSX",
         "Old School Music",
         "Oldschool Music",
-        "Tracked MSX"
+        "Tracked MSX",
+        "MSX",
+        "Music"
     ];
 
     for (let i=0;i<titles.length;i++){
