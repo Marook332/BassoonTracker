@@ -2,7 +2,7 @@ import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import fs from 'fs';
 
-let version = "0.5.0.5";
+let version = "0.5.0.6";
 
 const copyIndexHtmlPlugin = () => {
     return {

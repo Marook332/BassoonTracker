@@ -106,11 +106,15 @@ export function encodeRIFFsample(sampleData, bits){
 
     if (bits === 16){
         for (var i = 0; i<sampleData.length; i++){
-            file.writeWord((sampleData[i]*32767));
+            let w = Math.round(sampleData[i] * 32767);
+            w = Math.min(32767,Math.max(-32768,w));
+            file.writeWord(w);
         }
     }else{
         for (var i = 0; i<sampleData.length; i++){
-            file.writeUByte(Math.round(sampleData[i]*127) + 127);
+            let b = Math.round(sampleData[i] * 127.5 + 127.5);
+            b = Math.min(255,Math.max(0,b));
+            file.writeUByte(b);
         }
 	}
 
